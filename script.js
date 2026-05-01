@@ -240,7 +240,7 @@ const images = [
   { id:238, src:'https://picsum.photos/seed/urb238/700/500',   title:'Skyscraper Gaze',      cat:'urban',        w:700, h:500  },
   { id:239, src:'https://picsum.photos/seed/abs239/600/650',   title:'Fractured Flow',       cat:'abstract',     w:600, h:650  },
   { id:240, src:'https://picsum.photos/seed/ppl240/600/700',   title:'Steel Worker',         cat:'people',       w:600, h:700  },
-  { id:241, src:'https://picsum.photos/seed/nat241/700/500',   title:'Emerald Abyss',        cat:'nature',       w:700, h:500  },
+  { id:241, src:'https://picsum.photos/seed/nat241/700/550',   title:'Emerald Abyss',        cat:'nature',       w:700, h:550  },
   { id:242, src:'https://picsum.photos/seed/arc242/600/800',   title:'Marble Breath',        cat:'architecture', w:600, h:800  },
   { id:243, src:'https://picsum.photos/seed/urb243/700/500',   title:'Crosswalk Rhythm',     cat:'urban',        w:700, h:500  },
   { id:244, src:'https://picsum.photos/seed/abs244/600/600',   title:'Neural Mesh',          cat:'abstract',     w:600, h:600  },
@@ -271,25 +271,69 @@ let activeFilter = 'all';
 let currentIndex = 0;
 let activeFilter_lb = 'none';
 let filteredImages = [...images];
+let itemsPerPage = 24;
+let displayedCount = 0;
+
+/* ─── HELPERS ─── */
+function getThumb(src, w, h) {
+  // Reduces dimensions by 50% for grid thumbnails
+  return src.replace(`/${w}/${h}`, `/${Math.round(w/2)}/${Math.round(h/2)}`);
+}
+
+function getMicroThumb(src, w, h) {
+  // Very small for lightbox strip
+  return src.replace(`/${w}/${h}`, `/80/60`);
+}
 
 /* ─── BUILD GALLERY ─── */
 const gallery = document.getElementById('gallery');
 const countDisplay = document.getElementById('count-display');
 
+// Create sentinel for infinite scroll
+const sentinel = document.createElement('div');
+sentinel.id = 'gallery-sentinel';
+sentinel.style.height = '100px';
+document.querySelector('.gallery-wrap').appendChild(sentinel);
+
+const observer = new IntersectionObserver((entries) => {
+  if (entries[0].isIntersecting && displayedCount < filteredImages.length) {
+    renderNextBatch();
+  }
+}, { rootMargin: '400px' });
+
 function buildGallery() {
   gallery.innerHTML = '';
+  displayedCount = 0;
   filteredImages = activeFilter === 'all'
     ? [...images]
     : images.filter(img => img.cat === activeFilter);
 
   countDisplay.textContent = `${filteredImages.length} PHOTOGRAPHS`;
+  
+  renderNextBatch();
+  observer.observe(sentinel);
+}
 
-  filteredImages.forEach((img, idx) => {
+function renderNextBatch() {
+  const start = displayedCount;
+  const end = Math.min(start + itemsPerPage, filteredImages.length);
+  
+  if (start >= filteredImages.length) {
+    sentinel.style.display = 'none';
+    return;
+  }
+
+  for (let i = start; i < end; i++) {
+    const img = filteredImages[i];
     const item = document.createElement('div');
     item.className = 'gallery-item';
-    item.style.animationDelay = `${idx * 0.045}s`;
+    
+    // Smooth stagger for batch entry
+    const localIdx = i - start;
+    item.style.animationDelay = `${localIdx * 0.05}s`;
+    
     item.innerHTML = `
-      <img src="${img.src}" alt="${img.title}" loading="lazy" />
+      <img src="${getThumb(img.src, img.w, img.h)}" alt="${img.title}" onload="this.classList.add('loaded')" />
       <div class="item-overlay">
         <div class="item-cat">${img.cat}</div>
         <div class="item-title">${img.title}</div>
@@ -300,9 +344,17 @@ function buildGallery() {
           <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
         </svg>
       </div>`;
-    item.addEventListener('click', () => openLightbox(idx));
+    item.addEventListener('click', () => openLightbox(i));
     gallery.appendChild(item);
-  });
+  }
+  
+  displayedCount = end;
+  if (displayedCount >= filteredImages.length) {
+    observer.unobserve(sentinel);
+    sentinel.style.display = 'none';
+  } else {
+    sentinel.style.display = 'flex';
+  }
 }
 
 /* ─── CATEGORY FILTER ─── */
@@ -311,6 +363,7 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     activeFilter = btn.dataset.filter;
+    window.scrollTo({ top: gallery.offsetTop - 150, behavior: 'smooth' });
     buildGallery();
   });
 });
@@ -323,7 +376,6 @@ document.querySelectorAll('.hero-link').forEach(link => {
     const filterBtn = document.querySelector(`.filter-btn[data-filter="${filter}"]`);
     if (filterBtn) {
       filterBtn.click();
-      filterBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   });
 });
@@ -372,21 +424,28 @@ function renderLightbox(switching = false) {
 
 function buildThumbs() {
   lbThumbs.innerHTML = '';
+  // Optimization: Only render thumbnails in chunks or use a more efficient way
+  // For 264 images, we'll render all but use micro-thumbnails to save bandwidth
+  const fragment = document.createDocumentFragment();
   filteredImages.forEach((img, idx) => {
     const t = document.createElement('img');
-    t.src = img.src;
+    t.src = getMicroThumb(img.src, img.w, img.h);
     t.alt = img.title;
+    t.loading = "lazy";
     t.className = 'lb-thumb' + (idx === currentIndex ? ' active' : '');
     t.addEventListener('click', () => {
+      if (idx === currentIndex) return;
       currentIndex = idx;
       renderLightbox(true);
     });
-    lbThumbs.appendChild(t);
+    fragment.appendChild(t);
   });
+  lbThumbs.appendChild(fragment);
 }
 
 function updateThumbActive() {
-  document.querySelectorAll('.lb-thumb').forEach((t, i) => {
+  const thumbs = lbThumbs.querySelectorAll('.lb-thumb');
+  thumbs.forEach((t, i) => {
     t.classList.toggle('active', i === currentIndex);
   });
   // scroll into view
