@@ -114,6 +114,18 @@ header {
   border-bottom-color: var(--accent);
   background: rgba(201, 168, 76, 0.08);
 }
+.hero-title .hero-link, .logo-container.hero-link {
+  color: inherit;
+  border-bottom: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.hero-title .hero-link:hover, .logo-container.hero-link:hover {
+  background: none;
+  transform: translateY(-2px);
+}
+.hero-title .hero-link { display: inline-block; }
 
 /* ── FILTERS / CATEGORIES ── */
 .filter-bar {
