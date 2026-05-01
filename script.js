@@ -344,6 +344,13 @@ function renderNextBatch() {
           <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
         </svg>
       </div>`;
+    
+    // Fallback for cached images
+    const imgElement = item.querySelector('img');
+    if (imgElement.complete) {
+      imgElement.classList.add('loaded');
+    }
+
     item.addEventListener('click', () => openLightbox(i));
     gallery.appendChild(item);
   }
